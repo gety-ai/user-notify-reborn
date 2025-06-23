@@ -1,32 +1,47 @@
 #!/bin/bash
 
-# Build and Sign Script for User-Notify Basic Example (Ad-Hoc Signing)
+# Build and Sign Script for All User-Notify Examples (Ad-Hoc Signing)
 # Usage: ./build_and_sign.sh [--no-sign]
 
 set -e
 
 SKIP_SIGNING=false
 
-EXAMPLE_NAME="basic"
-BUNDLE_ID="com.example.user-notify-reborn"
+BUNDLE_ID_PREFIX="com.example.user-notify-reborn"
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
     case $1 in
-        --no-sign)
-            SKIP_SIGNING=true
-            shift
-            ;;
-        *)
-            echo "Unknown option: $1"
-            echo "Usage: $0 [--no-sign]"
-            echo "  --no-sign: Skip code signing"
-            exit 1
-            ;;
+    --no-sign)
+        SKIP_SIGNING=true
+        shift
+        ;;
+    *)
+        echo "Unknown option: $1"
+        echo "Usage: $0 [--no-sign]"
+        echo "  --no-sign: Skip code signing"
+        exit 1
+        ;;
     esac
 done
 
-echo "🚀 Building and packaging user-notify basic example as macOS app bundle..."
+# Function to discover all example files
+discover_examples() {
+    local examples=()
+    for file in examples/*.rs; do
+        if [ -f "$file" ]; then
+            local basename=$(basename "$file" .rs)
+            examples+=("$basename")
+        fi
+    done
+    echo "${examples[@]}"
+}
+
+# Get all examples
+EXAMPLES=($(discover_examples))
+
+echo "🚀 Building and packaging all user-notify examples as macOS app bundles..."
+echo "Found examples: ${EXAMPLES[*]}"
 if [ "$SKIP_SIGNING" = true ]; then
     echo "Signing: Disabled (--no-sign flag used)"
 else
@@ -59,56 +74,78 @@ create_app_bundle() {
     return 0
 }
 
-echo "📦 Building $EXAMPLE_NAME..."
-
-# Build the example from the root directory
-cargo build --release --example "$EXAMPLE_NAME"
-
-# Create app bundle
-create_app_bundle "$EXAMPLE_NAME" "$BUNDLE_ID"
-
-app_path="target/release/${EXAMPLE_NAME}.app"
-
-if [ "$SKIP_SIGNING" = false ]; then
-    echo "✍️ Ad-hoc signing $EXAMPLE_NAME app bundle..."
-    # Ad-hoc sign the entire app bundle
-    codesign --force --deep --sign "-" "$app_path"
-
-    # Verify the signature
-    echo "🔍 Verifying ad-hoc signature for $EXAMPLE_NAME..."
-    if codesign --verify --deep --verbose "$app_path" 2>/dev/null; then
-        echo "✅ $EXAMPLE_NAME app bundle ad-hoc signed and verified successfully"
-    else
-        echo "❌ Failed to verify ad-hoc signature for $EXAMPLE_NAME"
-        exit 1
-    fi
-else
-    echo "⚠️ Skipping signing for $EXAMPLE_NAME (--no-sign flag used)"
-fi
-
-echo "📍 App bundle location: $(pwd)/$app_path"
-echo "📍 Bundle ID: $BUNDLE_ID"
+# Build all examples
+echo "📦 Building all examples..."
+for example in "${EXAMPLES[@]}"; do
+    echo "Building example: $example"
+    cargo build --release --example "$example"
+done
 echo
 
-echo "🎉 Example built and packaged successfully!"
+# Create app bundles for all examples
+for example in "${EXAMPLES[@]}"; do
+    bundle_id="${BUNDLE_ID_PREFIX}.${example}"
+    create_app_bundle "$example" "$bundle_id"
+done
+
+# Sign all app bundles if signing is not skipped
+if [ "$SKIP_SIGNING" = false ]; then
+    echo "✍️ Ad-hoc signing all app bundles..."
+    for example in "${EXAMPLES[@]}"; do
+        app_path="target/release/${example}.app"
+        echo "Signing $example..."
+        # Ad-hoc sign the entire app bundle
+        codesign --force --deep --sign "-" "$app_path"
+
+        # Verify the signature
+        echo "🔍 Verifying ad-hoc signature for $example..."
+        if codesign --verify --deep --verbose "$app_path" 2>/dev/null; then
+            echo "✅ $example app bundle ad-hoc signed and verified successfully"
+        else
+            echo "❌ Failed to verify ad-hoc signature for $example"
+            exit 1
+        fi
+    done
+else
+    echo "⚠️ Skipping signing for all examples (--no-sign flag used)"
+fi
+
+echo "📍 App bundle locations:"
+for example in "${EXAMPLES[@]}"; do
+    app_path="target/release/${example}.app"
+    bundle_id="${BUNDLE_ID_PREFIX}.${example}"
+    echo "  - $(pwd)/$app_path (Bundle ID: $bundle_id)"
+done
+echo
+
+echo "🎉 All examples built and packaged successfully!"
 
 if [ "$SKIP_SIGNING" = false ]; then
-    echo "✅ App bundle ad-hoc signed (local development signing)"
+    echo "✅ All app bundles ad-hoc signed (local development signing)"
     echo
-    echo "🔧 To run the signed app bundle:"
-    echo "   open $app_path"
-    echo "   # or double-click the .app file in Finder"
+    echo "🔧 To run the signed app bundles:"
+    for example in "${EXAMPLES[@]}"; do
+        app_path="target/release/${example}.app"
+        echo "   open $app_path  # Run $example"
+    done
+    echo "   # or double-click the .app files in Finder"
     echo
     echo "🔧 Alternative command line execution:"
-    echo "   $app_path/Contents/MacOS/$EXAMPLE_NAME"
+    for example in "${EXAMPLES[@]}"; do
+        app_path="target/release/${example}.app"
+        echo "   $app_path/Contents/MacOS/$example"
+    done
     echo
     echo "ℹ️ Ad-hoc signatures are valid for local execution but cannot be distributed"
 else
     echo "💡 To build with ad-hoc signing, run:"
     echo "   ./examples/build_and_sign.sh"
     echo
-    echo "🔧 To run the unsigned app bundle:"
-    echo "   open $app_path"
+    echo "🔧 To run the unsigned app bundles:"
+    for example in "${EXAMPLES[@]}"; do
+        app_path="target/release/${example}.app"
+        echo "   open $app_path  # Run $example"
+    done
 fi
 
 echo
