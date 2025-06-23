@@ -13,6 +13,12 @@ pub enum Error {
     #[cfg(target_os = "macos")]
     #[error("NSError: {0}")]
     NSError(String),
+    #[cfg(target_os = "macos")]
+    #[error("Failed to set delegate_reference, did you call register multiple times?")]
+    MultipleRegisterCalls,
+    #[cfg(target_os = "macos")]
+    #[error("Failed to set listener_loop, did you call register multiple times?")]
+    MultipleRegisterCallsListenerLoop,
 
     // Windows errors
     #[cfg(target_os = "windows")]

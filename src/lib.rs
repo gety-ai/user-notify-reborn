@@ -37,20 +37,20 @@ impl NotifyManagerFactory {
             }
         }
 
-        // #[cfg(target_os = "macos")]
-        // {
-        //     use objc2_foundation::NSBundle;
+        #[cfg(target_os = "macos")]
+        {
+            use objc2_foundation::NSBundle;
 
-        //     if unsafe { NSBundle::mainBundle().bundleIdentifier().is_none() } {
-        //         return Err(Error::Other(format!(
-        //             "bundle id is not set, this is required to send notifications"
-        //         )));
-        //     }
+            if unsafe { NSBundle::mainBundle().bundleIdentifier().is_none() } {
+                return Err(Error::Other(format!(
+                    "bundle id is not set, this is required to send notifications"
+                )));
+            }
 
-        //     Ok(Arc::new(
-        //         os_impl::macos::NotifyManagerMacOS::new(),
-        //     ))
-        // }
+            Ok(Arc::new(
+                os_impl::macos::NotifyManagerMacOS::new(),
+            ))
+        }
 
         #[cfg(not(any(target_os = "macos", target_os = "windows")))]
         {
