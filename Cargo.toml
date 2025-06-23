@@ -64,3 +64,7 @@ path = "examples/basic.rs"
 [[example]]
 name = "long_text"
 path = "examples/long_text.rs"
+
+[[example]]
+name = "permission_request"
+path = "examples/permission_request.rs"
