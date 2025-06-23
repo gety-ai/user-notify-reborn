@@ -1,0 +1,43 @@
+[package]
+name = "user-notify-reborn"
+description = "Send notifications to the system notification center, works on Windows and macOS"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1.0.98"
+async-trait = "0.1.88"
+thiserror = "2.0.12"
+tokio = { version = "1.45.1", features = [
+    "macros",
+    "signal",
+    "sync",
+    "time",
+    "rt",
+    "rt-multi-thread",
+] }
+trace = "0.1.7"
+url = "2.5.4"
+uuid = { version = "1.17.0", features = ["v4"] }
+log = "0.4"
+
+[target."cfg(windows)".dependencies]
+base64 = "0.22.1"
+quick-xml = "0.37.5"
+serde = "1.0.219"
+serde_json = "1.0.140"
+windows = { version = "0.61.3", features = [
+    "ApplicationModel",
+    "Foundation_Collections",
+    "UI_Notifications",
+    "Win32_Foundation",
+    "Win32_Security",
+    "Win32_System_Threading",
+    "Win32_UI_Shell",
+    "Win32_UI_WindowsAndMessaging",
+    "Data_Xml_Dom",
+] }
+windows-collections = "0.2.0"
+
+[dev-dependencies]
+env_logger = "0.10"
