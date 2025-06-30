@@ -1,7 +1,7 @@
 use crate::{Error, NotifyBuilder, NotifyResponse, NotifyResponseAction};
 use base64::Engine;
 use std::collections::HashMap;
-use windows::{Data::Xml::Dom::XmlDocument, core::HSTRING};
+use windows::{core::HSTRING, Data::Xml::Dom::XmlDocument};
 
 /// Builds Windows Toast notification XML from a NotifyBuilder.
 ///

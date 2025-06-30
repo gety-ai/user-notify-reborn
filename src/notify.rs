@@ -81,7 +81,7 @@ impl NotifyBuilder {
 }
 
 /// Handle to a sent notification
-pub trait NotifyHandle
+pub trait NotifyHandleExt
 where
     Self: Send + Sync + Debug,
 {
@@ -93,10 +93,12 @@ where
 }
 
 #[async_trait]
-pub trait NotifyManager
+pub trait NotifyManagerExt
 where
     Self: Send + Sync + Debug,
 {
+    type NotifyHandle: NotifyHandleExt;
+
     /// Get notification permission state
     async fn get_notification_permission_state(&self) -> Result<bool, crate::Error>;
 
@@ -117,13 +119,10 @@ where
     fn remove_delivered_notifications(&self, ids: Vec<&str>) -> Result<(), Error>;
 
     /// Get all delivered notifications that are still active
-    async fn get_active_notifications(&self) -> Result<Vec<Box<dyn NotifyHandle>>, Error>;
+    async fn get_active_notifications(&self) -> Result<Vec<Self::NotifyHandle>, Error>;
 
     /// Send notification and return notification handle
-    async fn send(
-        &self,
-        builder: NotifyBuilder,
-    ) -> Result<Box<dyn NotifyHandle>, Error>;
+    async fn send(&self, builder: NotifyBuilder) -> Result<Self::NotifyHandle, Error>;
 }
 
 #[derive(Debug)]

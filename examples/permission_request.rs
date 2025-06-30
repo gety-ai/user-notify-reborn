@@ -1,4 +1,4 @@
-use user_notify_reborn::{NotifyCategory, NotifyCategoryAction, NotifyManagerFactory};
+use user_notify_reborn::prelude::*;
 
 const DEFAULT_BUNDLE_ID: &str = "com.example.user-notify-reborn";
 const ACTION_CATEGORY_ID: &str = "app.category.action";
@@ -12,11 +12,11 @@ fn create_test_categories() -> Vec<NotifyCategory> {
         identifier: ACTION_CATEGORY_ID.to_string(),
         actions: vec![
             NotifyCategoryAction::Action {
-                identifier: format!("{}.button.submit", ACTION_CATEGORY_ID),
+                identifier: format!("{ACTION_CATEGORY_ID}.button.submit"),
                 title: "Submit".to_string(),
             },
             NotifyCategoryAction::Action {
-                identifier: format!("{}.button.cancel", ACTION_CATEGORY_ID),
+                identifier: format!("{ACTION_CATEGORY_ID}.button.cancel"),
                 title: "Cancel".to_string(),
             },
         ],
@@ -29,7 +29,7 @@ async fn main() -> anyhow::Result<()> {
 
     let bundle_id = get_test_bundle_id();
 
-    let manager = NotifyManagerFactory::new(bundle_id, None)?;
+    let manager = NotifyManager::try_new(bundle_id, None)?;
     let categories = create_test_categories();
 
     // Register categories first

@@ -2,13 +2,13 @@
 name = "user-notify-reborn"
 description = "Send notifications to the system notification center, works on Windows and macOS"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
 
 [dependencies]
-anyhow = "1.0.98"
-async-trait = "0.1.88"
-thiserror = "2.0.12"
-tokio = { version = "1.45.1", features = [
+anyhow = "1"
+async-trait = "0.1"
+thiserror = "2"
+tokio = { version = "1", features = [
     "macros",
     "signal",
     "sync",
@@ -16,17 +16,17 @@ tokio = { version = "1.45.1", features = [
     "rt",
     "rt-multi-thread",
 ] }
-trace = "0.1.7"
-url = "2.5.4"
-uuid = { version = "1.17.0", features = ["v4"] }
-log = "0.4.27"
+trace = "0.1"
+url = "2"
+uuid = { version = "1", features = ["v4"] }
+log = "0.4"
 
 [target."cfg(windows)".dependencies]
-base64 = "0.22.1"
-quick-xml = "0.37.5"
-serde = "1.0.219"
-serde_json = "1.0.140"
-windows = { version = "0.61.3", features = [
+base64 = "0.22"
+quick-xml = "0.38"
+serde = "1"
+serde_json = "1"
+windows = { version = "0.61", features = [
     "ApplicationModel",
     "Foundation_Collections",
     "UI_Notifications",
@@ -37,12 +37,12 @@ windows = { version = "0.61.3", features = [
     "Win32_UI_WindowsAndMessaging",
     "Data_Xml_Dom",
 ] }
-windows-collections = "0.2.0"
+windows-collections = "0.2"
 
 [target."cfg(target_os = \"macos\")".dependencies]
-block2 = "0.6.1"
-objc2 = "0.6.1"
-objc2-foundation = { version = "0.3.1", features = [
+block2 = "0.6"
+objc2 = "0.6"
+objc2-foundation = { version = "0.3", features = [
     "NSArray",
     "NSBundle",
     "NSDictionary",
@@ -51,8 +51,8 @@ objc2-foundation = { version = "0.3.1", features = [
     "NSString",
     "NSURL",
 ] }
-objc2-user-notifications = "0.3.1"
-send_wrapper = "0.6.0"
+objc2-user-notifications = "0.3"
+send_wrapper = "0.6"
 
 [dev-dependencies]
 env_logger = "0.11.8"

@@ -1,7 +1,7 @@
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
-use user_notify_reborn::{NotifyBuilder, NotifyManagerFactory};
+use user_notify_reborn::prelude::*;
 
 const DEFAULT_BUNDLE_ID: &str = "com.example.user-notify-reborn";
 
@@ -49,13 +49,10 @@ async fn test_tauri_style_single_thread() -> Result<(), Box<dyn std::error::Erro
 
     // Create notification manager on main thread
     let manager =
-        match NotifyManagerFactory::new(get_test_bundle_id(), Some("tauri-style".to_string())) {
+        match NotifyManager::try_new(get_test_bundle_id(), Some("tauri-style".to_string())) {
             Ok(m) => m,
             Err(e) => {
-                eprintln!(
-                    "❌ Main thread: Failed to create notification manager: {}",
-                    e
-                );
+                eprintln!("❌ Main thread: Failed to create notification manager: {e}");
                 return Ok(());
             }
         };
@@ -63,33 +60,24 @@ async fn test_tauri_style_single_thread() -> Result<(), Box<dyn std::error::Erro
     // Register notification handler on main thread
     if let Err(e) = manager.register(
         Box::new(|response| {
-            println!(
-                "📬 Main thread: Notification response received: {:?}",
-                response
-            );
+            println!("📬 Main thread: Notification response received: {response:?}");
         }),
         vec![],
     ) {
-        eprintln!(
-            "❌ Main thread: Failed to register notification handler: {}",
-            e
-        );
+        eprintln!("❌ Main thread: Failed to register notification handler: {e}");
         return Ok(());
     }
 
     // Request notification permission on main thread
     match manager.first_time_ask_for_notification_permission().await {
         Ok(permission) => {
-            println!("🔐 Main thread: Notification permission: {}", permission);
+            println!("🔐 Main thread: Notification permission: {permission}");
             if !permission {
                 println!("⚠️  Warning: Notification permission not granted, but continuing test");
             }
         }
         Err(e) => {
-            eprintln!(
-                "❌ Main thread: Failed to request notification permission: {}",
-                e
-            );
+            eprintln!("❌ Main thread: Failed to request notification permission: {e}");
             #[cfg(target_os = "macos")]
             {
                 eprintln!("💡 On macOS, make sure your app has a proper bundle identifier");
@@ -104,7 +92,7 @@ async fn test_tauri_style_single_thread() -> Result<(), Box<dyn std::error::Erro
 
     let result = Arc::new(Mutex::new(false));
     let result_clone = Arc::clone(&result);
-    let manager_clone = Arc::clone(&manager);
+    let manager_clone = Arc::new(manager);
 
     let handle = thread::spawn(move || {
         let rt = tokio::runtime::Runtime::new()
@@ -135,17 +123,14 @@ async fn test_tauri_style_single_thread() -> Result<(), Box<dyn std::error::Erro
                             println!("📊 Worker thread: Active notifications: {}", active.len());
                         }
                         Err(e) => {
-                            eprintln!(
-                                "⚠️  Worker thread: Failed to get active notifications: {}",
-                                e
-                            );
+                            eprintln!("⚠️  Worker thread: Failed to get active notifications: {e}");
                         }
                     }
 
                     true
                 }
                 Err(e) => {
-                    eprintln!("❌ Worker thread: Failed to send notification: {}", e);
+                    eprintln!("❌ Worker thread: Failed to send notification: {e}");
                     false
                 }
             }
@@ -176,13 +161,10 @@ async fn test_tauri_style_multiple_threads() -> Result<(), Box<dyn std::error::E
     println!("🔧 Main thread: Setting up notification manager for multiple workers...");
 
     let manager =
-        match NotifyManagerFactory::new(get_test_bundle_id(), Some("tauri-multi".to_string())) {
+        match NotifyManager::try_new(get_test_bundle_id(), Some("tauri-multi".to_string())) {
             Ok(m) => m,
             Err(e) => {
-                eprintln!(
-                    "❌ Main thread: Failed to create notification manager: {}",
-                    e
-                );
+                eprintln!("❌ Main thread: Failed to create notification manager: {e}");
                 return Ok(());
             }
         };
@@ -190,14 +172,11 @@ async fn test_tauri_style_multiple_threads() -> Result<(), Box<dyn std::error::E
     // Register handler with worker identification
     if let Err(e) = manager.register(
         Box::new(|response| {
-            println!(
-                "📬 Main thread: Response from worker notification: {:?}",
-                response
-            );
+            println!("📬 Main thread: Response from worker notification: {response:?}");
         }),
         vec![],
     ) {
-        eprintln!("❌ Main thread: Failed to register handler: {}", e);
+        eprintln!("❌ Main thread: Failed to register handler: {e}");
         return Ok(());
     }
 
@@ -208,7 +187,7 @@ async fn test_tauri_style_multiple_threads() -> Result<(), Box<dyn std::error::E
     let results = Arc::new(Mutex::new(Vec::new()));
 
     println!("🧵 Spawning 3 worker threads...");
-
+    let manager = Arc::new(manager);
     for worker_id in 0..3 {
         let results_clone = Arc::clone(&results);
         let manager_clone = Arc::clone(&manager);
@@ -218,19 +197,18 @@ async fn test_tauri_style_multiple_threads() -> Result<(), Box<dyn std::error::E
                 .expect("Failed to create tokio runtime in worker thread");
 
             let result = rt.block_on(async {
-                println!("📤 Worker {}: Preparing notification...", worker_id);
+                println!("📤 Worker {worker_id}: Preparing notification...");
 
                 // Add a small delay to simulate different timing
                 tokio::time::sleep(Duration::from_millis(worker_id * 500)).await;
 
                 let notification = NotifyBuilder::new()
-                    .title(&format!("Worker {} Notification", worker_id))
+                    .title(&format!("Worker {worker_id} Notification"))
                     .body(&format!(
-                        "This notification was sent from worker thread #{}",
-                        worker_id
+                        "This notification was sent from worker thread #{worker_id}"
                     ))
                     .subtitle("Multi-Worker Test")
-                    .set_thread_id(&format!("worker-{}", worker_id));
+                    .set_thread_id(&format!("worker-{worker_id}"));
 
                 match manager_clone.send(notification).await {
                     Ok(handle) => {
@@ -245,10 +223,7 @@ async fn test_tauri_style_multiple_threads() -> Result<(), Box<dyn std::error::E
                         true
                     }
                     Err(e) => {
-                        eprintln!(
-                            "❌ Worker {}: Failed to send notification: {}",
-                            worker_id, e
-                        );
+                        eprintln!("❌ Worker {worker_id}: Failed to send notification: {e}");
                         false
                     }
                 }
@@ -277,9 +252,9 @@ async fn test_tauri_style_multiple_threads() -> Result<(), Box<dyn std::error::E
 
     for (worker_id, result) in final_results.iter() {
         if *result {
-            println!("✅ Worker {} passed", worker_id);
+            println!("✅ Worker {worker_id} passed");
         } else {
-            println!("❌ Worker {} failed", worker_id);
+            println!("❌ Worker {worker_id} failed");
         }
     }
 
@@ -294,24 +269,21 @@ async fn test_tauri_style_async_threads() -> Result<(), Box<dyn std::error::Erro
     println!("🔧 Main thread: Setting up for async worker operations...");
 
     let manager =
-        match NotifyManagerFactory::new(get_test_bundle_id(), Some("tauri-async".to_string())) {
+        match NotifyManager::try_new(get_test_bundle_id(), Some("tauri-async".to_string())) {
             Ok(m) => m,
             Err(e) => {
-                eprintln!(
-                    "❌ Main thread: Failed to create notification manager: {}",
-                    e
-                );
+                eprintln!("❌ Main thread: Failed to create notification manager: {e}");
                 return Ok(());
             }
         };
 
     if let Err(e) = manager.register(
         Box::new(|response| {
-            println!("📬 Main thread: Async worker response: {:?}", response);
+            println!("📬 Main thread: Async worker response: {response:?}");
         }),
         vec![],
     ) {
-        eprintln!("❌ Main thread: Failed to register handler: {}", e);
+        eprintln!("❌ Main thread: Failed to register handler: {e}");
         return Ok(());
     }
 
@@ -320,7 +292,7 @@ async fn test_tauri_style_async_threads() -> Result<(), Box<dyn std::error::Erro
     // Worker thread with nested async operations
     let result = Arc::new(Mutex::new(false));
     let result_clone = Arc::clone(&result);
-    let manager_clone = Arc::clone(&manager);
+    let manager_clone = Arc::new(manager);
 
     println!("🧵 Spawning worker thread with nested async operations...");
 
@@ -332,7 +304,7 @@ async fn test_tauri_style_async_threads() -> Result<(), Box<dyn std::error::Erro
             println!("📤 Worker thread: Starting async notification sequence...");
 
             // Simulate multiple async operations in sequence
-            let tasks = vec![
+            let tasks = [
                 ("First", "First async notification from worker thread"),
                 ("Second", "Second async notification with delay"),
                 ("Final", "Final notification in the sequence"),
@@ -341,10 +313,10 @@ async fn test_tauri_style_async_threads() -> Result<(), Box<dyn std::error::Erro
             let mut all_success = true;
 
             for (i, (name, body)) in tasks.iter().enumerate() {
-                println!("📤 Worker thread: Sending {} notification...", name);
+                println!("📤 Worker thread: Sending {name} notification...");
 
                 let notification = NotifyBuilder::new()
-                    .title(&format!("Async Worker - {}", name))
+                    .title(&format!("Async Worker - {name}"))
                     .body(body)
                     .subtitle("Async Sequence Test")
                     .set_thread_id("async-sequence");
@@ -358,10 +330,7 @@ async fn test_tauri_style_async_threads() -> Result<(), Box<dyn std::error::Erro
                         );
                     }
                     Err(e) => {
-                        eprintln!(
-                            "❌ Worker thread: Failed to send {} notification: {}",
-                            name, e
-                        );
+                        eprintln!("❌ Worker thread: Failed to send {name} notification: {e}");
                         all_success = false;
                     }
                 }
@@ -383,10 +352,7 @@ async fn test_tauri_style_async_threads() -> Result<(), Box<dyn std::error::Erro
                     );
                 }
                 Err(e) => {
-                    eprintln!(
-                        "⚠️  Worker thread: Failed to get final active notifications: {}",
-                        e
-                    );
+                    eprintln!("⚠️  Worker thread: Failed to get final active notifications: {e}");
                 }
             }
 

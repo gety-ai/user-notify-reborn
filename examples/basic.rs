@@ -1,11 +1,11 @@
-use user_notify_reborn::{NotifyBuilder, NotifyManagerFactory};
+use user_notify_reborn::prelude::*;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
 
     // Create notification manager
-    let manager = NotifyManagerFactory::new(
+    let manager = NotifyManager::try_new(
         "com.example.user-notify-reborn".to_string(),
         Some("usernotify".to_string()),
     )?;
@@ -13,14 +13,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Register notification handler
     manager.register(
         Box::new(|response| {
-            println!("Received notification response: {:?}", response);
+            println!("Received notification response: {response:?}");
         }),
         vec![],
     )?;
 
     // Request permission (important on macOS)
     let permission = manager.first_time_ask_for_notification_permission().await?;
-    println!("Notification permission granted: {}", permission);
+    println!("Notification permission granted: {permission}");
 
     let notification = NotifyBuilder::new()
         .title("Hello from user-notify-reborn!")

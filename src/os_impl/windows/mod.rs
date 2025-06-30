@@ -1,16 +1,16 @@
 use crate::{
-    Error, NotifyBuilder, NotifyCategory, NotifyHandle, NotifyManager, NotifyResponseAction,
+    Error, NotifyBuilder, NotifyCategory, NotifyHandleExt, NotifyManagerExt, NotifyResponseAction,
 };
 use async_trait::async_trait;
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock, RwLock};
+use windows::core::{IInspectable, Interface, HSTRING};
 use windows::Foundation::Collections::StringMap;
 use windows::Foundation::TypedEventHandler;
 use windows::UI::Notifications::{
     NotificationData, ToastActivatedEventArgs, ToastDismissalReason, ToastDismissedEventArgs,
     ToastNotifier,
 };
-use windows::core::{HSTRING, IInspectable, Interface};
 use windows::{UI::Notifications::ToastNotification, UI::Notifications::ToastNotificationManager};
 use windows_collections::IVectorView;
 
@@ -25,12 +25,12 @@ mod builder;
 /// - [Windows Toast Notifications](https://docs.microsoft.com/en-us/windows/apps/design/shell/tiles-and-notifications/adaptive-interactive-toasts)
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
-pub struct NotifyHandleWindows {
+pub struct NotifyHandle {
     id: String,
     user_metadata: HashMap<String, String>,
 }
 
-impl NotifyHandle for NotifyHandleWindows {
+impl NotifyHandleExt for NotifyHandle {
     fn close(&self) -> Result<(), crate::Error> {
         log::info!("Windows: Closing notification {}", self.id);
         Ok(())
@@ -50,7 +50,7 @@ impl NotifyHandle for NotifyHandleWindows {
 /// - [Toast Notification Manager](https://docs.microsoft.com/en-us/uwp/api/windows.ui.notifications.toastnotificationmanager)
 /// - [Desktop Bridge notifications](https://docs.microsoft.com/en-us/windows/apps/design/shell/tiles-and-notifications/send-local-toast-desktop)
 /// - [Windows Runtime APIs in Rust](https://docs.rs/windows/latest/windows/)
-pub struct NotifyManagerWindows {
+pub struct NotifyManager {
     #[allow(clippy::type_complexity)]
     handler_callback: Arc<OnceLock<Box<dyn Fn(crate::NotifyResponse) + Send + Sync + 'static>>>,
     app_id: String,
@@ -58,7 +58,7 @@ pub struct NotifyManagerWindows {
     categories: Arc<RwLock<HashMap<String, NotifyCategory>>>,
 }
 
-impl std::fmt::Debug for NotifyManagerWindows {
+impl std::fmt::Debug for NotifyManager {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("NotifyManagerWindows")
             .field(
@@ -75,13 +75,25 @@ impl std::fmt::Debug for NotifyManagerWindows {
 const MESSAGE_GROUP: &str = "msg-group";
 const USER_INFO_JSON_KEY: &str = "UserInfoJson";
 
-impl NotifyManagerWindows {
-    pub fn new(app_id: String, notification_protocol: Option<String>) -> Self {
+impl NotifyManager {
+    fn new_(app_id: String, notification_protocol: Option<String>) -> Self {
         Self {
             handler_callback: Arc::new(OnceLock::new()),
             app_id,
             notification_protocol,
             categories: Arc::new(RwLock::new(HashMap::new())),
+        }
+    }
+
+    pub fn try_new(app_id: String, notification_protocol: Option<String>) -> Result<Self, Error> {
+        use windows::core::HSTRING;
+        match ::windows::UI::Notifications::ToastNotificationManager::CreateToastNotifierWithId(
+            &HSTRING::from(&app_id),
+        ) {
+            Ok(_tf) => Ok(Self::new_(app_id.clone(), notification_protocol)),
+            Err(err) => Err(Error::Other(format!(
+                "failed to get toast notifier for {app_id}: {err:?}"
+            ))),
         }
     }
 
@@ -184,8 +196,8 @@ impl NotifyManagerWindows {
     fn create_notification_handle(
         builder: &NotifyBuilder,
         notification_id: String,
-    ) -> NotifyHandleWindows {
-        NotifyHandleWindows {
+    ) -> NotifyHandle {
+        NotifyHandle {
             id: notification_id,
             user_metadata: builder.user_metadata.clone().unwrap_or_default(),
         }
@@ -430,7 +442,9 @@ impl NotifyManagerWindows {
 }
 
 #[async_trait]
-impl NotifyManager for NotifyManagerWindows {
+impl NotifyManagerExt for NotifyManager {
+    type NotifyHandle = NotifyHandle;
+
     async fn get_notification_permission_state(&self) -> Result<bool, crate::Error> {
         Ok(true)
     }
@@ -470,16 +484,16 @@ impl NotifyManager for NotifyManagerWindows {
         Ok(())
     }
 
-    async fn get_active_notifications(&self) -> Result<Vec<Box<dyn NotifyHandle>>, crate::Error> {
+    async fn get_active_notifications(&self) -> Result<Vec<NotifyHandle>, crate::Error> {
         let history = self.get_history()?;
 
-        let mut handles: Vec<NotifyHandleWindows> = Vec::new();
+        let mut handles: Vec<NotifyHandle> = Vec::new();
 
         for toast in history.into_iter() {
             let user_metadata: HashMap<String, String> =
                 Self::user_info_from_toast(&toast).unwrap_or_default();
 
-            handles.push(NotifyHandleWindows {
+            handles.push(NotifyHandle {
                 id: toast.Tag()?.to_string(),
                 user_metadata,
             });
@@ -487,13 +501,10 @@ impl NotifyManager for NotifyManagerWindows {
 
         log::debug!("Windows: Found {} active notifications", handles.len());
 
-        Ok(handles
-            .into_iter()
-            .map(|h| Box::new(h) as Box<dyn NotifyHandle>)
-            .collect())
+        Ok(handles)
     }
 
-    async fn send(&self, builder: NotifyBuilder) -> Result<Box<dyn NotifyHandle>, crate::Error> {
+    async fn send(&self, builder: NotifyBuilder) -> Result<NotifyHandle, crate::Error> {
         log::info!("Windows: Sending notification");
 
         let notification_id = Self::generate_notification_id();
@@ -506,6 +517,6 @@ impl NotifyManager for NotifyManagerWindows {
         self.get_toast_notifier()?.Show(&toast)?;
 
         let handle = Self::create_notification_handle(&builder, notification_id);
-        Ok(Box::new(handle) as Box<dyn NotifyHandle>)
+        Ok(handle)
     }
 }

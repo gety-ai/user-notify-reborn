@@ -1,5 +1,5 @@
-use tokio::time::{Duration, sleep};
-use user_notify_reborn::{NotifyBuilder, NotifyManagerFactory};
+use tokio::time::{sleep, Duration};
+use user_notify_reborn::prelude::*;
 
 const DEFAULT_BUNDLE_ID: &str = "com.example.user-notify-reborn";
 
@@ -13,7 +13,7 @@ async fn main() -> anyhow::Result<()> {
 
     let bundle_id = get_test_bundle_id();
 
-    let manager = NotifyManagerFactory::new(bundle_id, Some("usernotify".to_string()))?;
+    let manager = NotifyManager::try_new(bundle_id, Some("usernotify".to_string()))?;
 
     // Register notification handler
     manager.register(
@@ -25,7 +25,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Request permission (important on macOS)
     let permission = manager.first_time_ask_for_notification_permission().await?;
-    println!("🔐 Notification permission granted: {}", permission);
+    println!("🔐 Notification permission granted: {permission}");
 
     // Send first notification
     println!("📤 Sending first notification...");

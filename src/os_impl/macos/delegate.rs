@@ -1,5 +1,5 @@
-use crate::{NotifyResponse, NotifyResponseAction, macos::user_info_dictionary_to_hashmap};
-use objc2::{DefinedClass, MainThreadMarker, MainThreadOnly, define_class, msg_send, rc::Retained};
+use crate::{macos::user_info_dictionary_to_hashmap, NotifyResponse, NotifyResponseAction};
+use objc2::{define_class, msg_send, rc::Retained, DefinedClass, MainThreadMarker, MainThreadOnly};
 use objc2_foundation::{NSObject, NSObjectProtocol};
 use objc2_user_notifications::{
     UNNotification, UNNotificationDefaultActionIdentifier, UNNotificationDismissActionIdentifier,

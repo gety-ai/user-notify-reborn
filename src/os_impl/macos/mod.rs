@@ -6,9 +6,9 @@ use async_trait::async_trait;
 use builder::build_and_send;
 use delegate::NotificationDelegate;
 use objc2::{
-    MainThreadMarker, Message,
     rc::Retained,
     runtime::{AnyObject, Bool, ProtocolObject},
+    MainThreadMarker, Message,
 };
 use objc2_foundation::{NSArray, NSBundle, NSDictionary, NSError, NSSet, NSString};
 use objc2_user_notifications::{
@@ -42,7 +42,7 @@ type DelegateReference =
 type ListenerHandle = SendWrapper<OnceCell<thread::JoinHandle<()>>>;
 
 // ============================================================================
-// NotifyHandleMacOS - Individual Notification Handle
+// NotifyHandle - Individual Notification Handle
 // ============================================================================
 
 /// A handle for a specific notification on macOS platform.
@@ -55,7 +55,7 @@ type ListenerHandle = SendWrapper<OnceCell<thread::JoinHandle<()>>>;
 /// - [UNNotification](https://developer.apple.com/documentation/usernotifications/unnotification)
 #[derive(Debug)]
 #[allow(dead_code)]
-pub struct NotifyHandleMacOS {
+pub struct NotifyHandle {
     /// Unique identifier for the notification
     ///
     /// This corresponds to the `identifier` property of `UNNotificationRequest`
@@ -63,7 +63,7 @@ pub struct NotifyHandleMacOS {
     user_info: HashMap<String, String>,
 }
 
-impl NotifyHandleMacOS {
+impl NotifyHandle {
     /// Creates a new notification handle
     ///
     /// # Arguments
@@ -71,7 +71,7 @@ impl NotifyHandleMacOS {
     /// * `user_data` - User-defined metadata
     ///
     /// # Returns
-    /// A new `NotifyHandleMacOS` instance
+    /// A new `NotifyHandle` instance
     pub(super) fn new(id: String, user_data: HashMap<String, String>) -> Self {
         Self {
             id,
@@ -129,7 +129,7 @@ impl NotifyHandleMacOS {
     }
 }
 
-impl NotifyHandle for NotifyHandleMacOS {
+impl NotifyHandleExt for NotifyHandle {
     /// Closes (removes) this notification from the system
     ///
     /// # Errors
@@ -152,7 +152,7 @@ impl NotifyHandle for NotifyHandleMacOS {
 }
 
 // ============================================================================
-// NotifyManagerMacOS - Notification Management System
+// NotifyManager - Notification Management System
 // ============================================================================
 
 /// Internal state for the macOS notification manager
@@ -160,7 +160,7 @@ impl NotifyHandle for NotifyHandleMacOS {
 /// This struct holds the core components needed for notification management,
 /// including delegate references and thread handles.
 #[derive(Debug)]
-pub struct NotifyManagerMacOSInner {
+pub struct NotifyManagerInner {
     /// Reference to the notification delegate to prevent it from being dropped
     ///
     /// The delegate handles notification responses and must remain alive
@@ -200,29 +200,38 @@ pub struct NotifyManagerMacOSInner {
 /// - [UserNotifications Framework](https://developer.apple.com/documentation/usernotifications)
 /// - [UNUserNotificationCenter](https://developer.apple.com/documentation/usernotifications/unusernotificationcenter)
 #[derive(Debug, Clone)]
-pub struct NotifyManagerMacOS {
+pub struct NotifyManager {
     /// Shared internal state
-    pub(super) inner: Arc<NotifyManagerMacOSInner>,
+    pub(super) inner: Arc<NotifyManagerInner>,
 }
 
-impl NotifyManagerMacOS {
+impl NotifyManager {
     /// Creates a new notification manager instance
     ///
     /// # Returns
-    /// A new `NotifyManagerMacOS` with initialized internal state
+    /// A new `NotifyManager` with initialized internal state
     ///
     /// # Note
     /// The bundle identifier is retrieved during construction and cached.
     /// If no bundle identifier is available, notification operations will fail.
     #[allow(clippy::new_without_default)]
-    pub fn new() -> Self {
+    pub fn new_() -> Self {
         Self {
-            inner: Arc::new(NotifyManagerMacOSInner {
+            inner: Arc::new(NotifyManagerInner {
                 delegate_reference: SendWrapper::new(OnceCell::new()),
                 listener_loop: SendWrapper::new(OnceCell::new()),
                 bundle_id: Self::get_bundle_identifier(),
             }),
         }
+    }
+
+    pub fn try_new() -> Result<Self, Error> {
+        use objc2_foundation::NSBundle;
+        if unsafe { NSBundle::mainBundle().bundleIdentifier().is_none() } {
+            return Err(Error::NoBundleId);
+        }
+
+        Ok(Self::new_())
     }
 
     /// Retrieves the application's bundle identifier
@@ -413,7 +422,7 @@ impl NotifyManagerMacOS {
     /// # Returns
     /// A block that processes the notification list
     fn create_notifications_handler(
-        sender: tokio::sync::oneshot::Sender<Vec<NotifyHandleMacOS>>,
+        sender: tokio::sync::oneshot::Sender<Vec<NotifyHandle>>,
     ) -> block2::RcBlock<dyn Fn(NonNull<NSArray<UNNotification>>)> {
         let cb = RefCell::new(Some(sender));
 
@@ -440,7 +449,7 @@ impl NotifyManagerMacOS {
     /// Vector of notification handles
     fn convert_notifications_to_handles(
         notifications: &NSArray<UNNotification>,
-    ) -> Vec<NotifyHandleMacOS> {
+    ) -> Vec<NotifyHandle> {
         let mut handles = Vec::with_capacity(notifications.count());
 
         for item in notifications {
@@ -448,7 +457,7 @@ impl NotifyManagerMacOS {
                 let request = item.request();
                 let id = request.identifier().to_string();
                 let user_info = user_info_dictionary_to_hashmap(request.content().userInfo());
-                handles.push(NotifyHandleMacOS::new(id, user_info));
+                handles.push(NotifyHandle::new(id, user_info));
             }
         }
 
@@ -478,7 +487,9 @@ impl NotifyManagerMacOS {
 }
 
 #[async_trait]
-impl NotifyManager for NotifyManagerMacOS {
+impl NotifyManagerExt for NotifyManager {
+    type NotifyHandle = NotifyHandle;
+
     /// Checks the current notification permission state
     ///
     /// # Returns
@@ -636,10 +647,10 @@ impl NotifyManager for NotifyManagerMacOS {
     ///
     /// # References
     /// - [getDeliveredNotifications](https://developer.apple.com/documentation/usernotifications/unusernotificationcenter/1649520-getdeliverednotifications)
-    async fn get_active_notifications(&self) -> Result<Vec<Box<dyn NotifyHandle>>, Error> {
+    async fn get_active_notifications(&self) -> Result<Vec<Self::NotifyHandle>, Error> {
         self.ensure_valid_bundle_id()?;
 
-        let (tx, rx) = tokio::sync::oneshot::channel::<Vec<NotifyHandleMacOS>>();
+        let (tx, rx) = tokio::sync::oneshot::channel::<Vec<NotifyHandle>>();
 
         {
             let completion_handler = Self::create_notifications_handler(tx);
@@ -649,11 +660,7 @@ impl NotifyManager for NotifyManagerMacOS {
             }
         }
 
-        Ok(rx
-            .await?
-            .into_iter()
-            .map(|n| Box::new(n) as Box<dyn NotifyHandle>)
-            .collect())
+        Ok(rx.await?)
     }
 
     /// Sends a notification using the provided builder configuration
@@ -670,11 +677,11 @@ impl NotifyManager for NotifyManagerMacOS {
     ///
     /// # References
     /// - [UNUserNotificationCenter.addNotificationRequest](https://developer.apple.com/documentation/usernotifications/unusernotificationcenter/1649508-addnotificationrequest)
-    async fn send(&self, builder: NotifyBuilder) -> Result<Box<dyn NotifyHandle>, Error> {
+    async fn send(&self, builder: NotifyBuilder) -> Result<Self::NotifyHandle, Error> {
         let (tx, rx) = tokio::sync::oneshot::channel::<Result<(), Error>>();
         let handle = build_and_send(builder, self, tx)?;
         rx.await??;
-        Ok::<_, Error>(Box::new(handle) as Box<dyn NotifyHandle>)
+        Ok(handle)
     }
 }
 
