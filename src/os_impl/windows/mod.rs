@@ -85,12 +85,15 @@ impl NotifyManager {
         }
     }
 
-    pub fn try_new(app_id: String, notification_protocol: Option<String>) -> Result<Self, Error> {
+    pub fn try_new(app_id: &str, notification_protocol: Option<&str>) -> Result<Self, Error> {
         use windows::core::HSTRING;
         match ::windows::UI::Notifications::ToastNotificationManager::CreateToastNotifierWithId(
-            &HSTRING::from(&app_id),
+            &HSTRING::from(app_id),
         ) {
-            Ok(_tf) => Ok(Self::new_(app_id.clone(), notification_protocol)),
+            Ok(_tf) => Ok(Self::new_(
+                app_id.to_string(),
+                notification_protocol.map(|s| s.to_string()),
+            )),
             Err(err) => Err(Error::Other(format!(
                 "failed to get toast notifier for {app_id}: {err:?}"
             ))),
@@ -208,8 +211,7 @@ impl NotifyManager {
         let escaped_identifier = quick_xml::escape::escape(identifier);
         let escaped_title = quick_xml::escape::escape(title);
         format!(
-            r#"<action content="{}" arguments="{}" activationType="foreground" />"#,
-            escaped_title, escaped_identifier
+            r#"<action content="{escaped_title}" arguments="{escaped_identifier}" activationType="foreground" />"#
         )
     }
 
@@ -224,8 +226,7 @@ impl NotifyManager {
         let escaped_placeholder = quick_xml::escape::escape(input_placeholder);
 
         format!(
-            r#"<input id="textBox" type="text" placeHolderContent="{}" /><action content="{}" arguments="{}" hint-inputId="textBox" activationType="foreground" />"#,
-            escaped_placeholder, escaped_button_title, escaped_identifier
+            r#"<input id="textBox" type="text" placeHolderContent="{escaped_placeholder}" /><action content="{escaped_button_title}" arguments="{escaped_identifier}" hint-inputId="textBox" activationType="foreground" />"#
         )
     }
 
@@ -269,10 +270,7 @@ impl NotifyManager {
             actions_xml.push_str("</actions>");
             Ok(actions_xml)
         } else {
-            log::warn!(
-                "Category '{}' not found in registered categories",
-                category_id
-            );
+            log::warn!("Category '{category_id}' not found in registered categories");
             Ok(String::new())
         }
     }
@@ -410,7 +408,7 @@ impl NotifyManager {
         match ToastNotificationManager::History()?.Clear() {
             Ok(_) => Ok(()),
             Err(err) => {
-                log::warn!("Failed to clear notification history: {:?}", err);
+                log::warn!("Failed to clear notification history: {err:?}");
                 self.clear_notifications_by_app_id()?;
                 Ok(()) // Don't fail the operation for cleanup issues
             }
@@ -421,7 +419,7 @@ impl NotifyManager {
     fn clear_notifications_by_app_id(&self) -> Result<(), Error> {
         if let Ok(manager) = ToastNotificationManager::History() {
             if let Err(clear_err) = manager.ClearWithId(&HSTRING::from(self.app_id.clone())) {
-                log::warn!("Failed to clear notifications for app ID: {:?}", clear_err);
+                log::warn!("Failed to clear notifications for app ID: {clear_err:?}");
             }
         }
         Ok(())

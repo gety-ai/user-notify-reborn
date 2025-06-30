@@ -48,14 +48,13 @@ async fn test_tauri_style_single_thread() -> Result<(), Box<dyn std::error::Erro
     println!("🔧 Main thread: Setting up notification manager...");
 
     // Create notification manager on main thread
-    let manager =
-        match NotifyManager::try_new(get_test_bundle_id(), Some("tauri-style".to_string())) {
-            Ok(m) => m,
-            Err(e) => {
-                eprintln!("❌ Main thread: Failed to create notification manager: {e}");
-                return Ok(());
-            }
-        };
+    let manager = match NotifyManager::try_new(&get_test_bundle_id(), Some("tauri-style")) {
+        Ok(m) => m,
+        Err(e) => {
+            eprintln!("❌ Main thread: Failed to create notification manager: {e}");
+            return Ok(());
+        }
+    };
 
     // Register notification handler on main thread
     if let Err(e) = manager.register(
@@ -160,14 +159,13 @@ async fn test_tauri_style_multiple_threads() -> Result<(), Box<dyn std::error::E
     // Main thread: Setup notification manager
     println!("🔧 Main thread: Setting up notification manager for multiple workers...");
 
-    let manager =
-        match NotifyManager::try_new(get_test_bundle_id(), Some("tauri-multi".to_string())) {
-            Ok(m) => m,
-            Err(e) => {
-                eprintln!("❌ Main thread: Failed to create notification manager: {e}");
-                return Ok(());
-            }
-        };
+    let manager = match NotifyManager::try_new(&get_test_bundle_id(), Some("tauri-multi")) {
+        Ok(m) => m,
+        Err(e) => {
+            eprintln!("❌ Main thread: Failed to create notification manager: {e}");
+            return Ok(());
+        }
+    };
 
     // Register handler with worker identification
     if let Err(e) = manager.register(
@@ -268,14 +266,13 @@ async fn test_tauri_style_async_threads() -> Result<(), Box<dyn std::error::Erro
     // Main thread: Setup
     println!("🔧 Main thread: Setting up for async worker operations...");
 
-    let manager =
-        match NotifyManager::try_new(get_test_bundle_id(), Some("tauri-async".to_string())) {
-            Ok(m) => m,
-            Err(e) => {
-                eprintln!("❌ Main thread: Failed to create notification manager: {e}");
-                return Ok(());
-            }
-        };
+    let manager = match NotifyManager::try_new(&get_test_bundle_id(), Some("tauri-async")) {
+        Ok(m) => m,
+        Err(e) => {
+            eprintln!("❌ Main thread: Failed to create notification manager: {e}");
+            return Ok(());
+        }
+    };
 
     if let Err(e) = manager.register(
         Box::new(|response| {

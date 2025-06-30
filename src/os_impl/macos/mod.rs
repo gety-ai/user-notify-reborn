@@ -1,7 +1,9 @@
 mod builder;
 mod delegate;
 
-use crate::{Error, NotifyBuilder, NotifyCategory, NotifyHandle, NotifyManager, NotifyResponse};
+use crate::{
+    Error, NotifyBuilder, NotifyCategory, NotifyHandleExt, NotifyManagerExt, NotifyResponse,
+};
 use async_trait::async_trait;
 use builder::build_and_send;
 use delegate::NotificationDelegate;
@@ -225,7 +227,7 @@ impl NotifyManager {
         }
     }
 
-    pub fn try_new() -> Result<Self, Error> {
+    pub fn try_new(_bundle_id: &str, _category_identifier: Option<&str>) -> Result<Self, Error> {
         use objc2_foundation::NSBundle;
         if unsafe { NSBundle::mainBundle().bundleIdentifier().is_none() } {
             return Err(Error::NoBundleId);
@@ -254,11 +256,7 @@ impl NotifyManager {
     /// # Returns
     /// Reference to bundle ID if valid, `Error::NoBundleId` otherwise
     fn ensure_valid_bundle_id(&self) -> Result<&str, Error> {
-        self.inner
-            .bundle_id
-            .as_ref()
-            .map(String::as_str)
-            .ok_or(Error::NoBundleId)
+        self.inner.bundle_id.as_deref().ok_or(Error::NoBundleId)
     }
 
     /// Creates a completion handler for notification requests
@@ -747,7 +745,7 @@ fn category_to_native_category(category: NotifyCategory) -> Retained<UNNotificat
     let actions: Retained<_> = category
         .actions
         .iter()
-        .map(|action| convert_action_to_native(action))
+        .map(convert_action_to_native)
         .collect();
 
     unsafe {

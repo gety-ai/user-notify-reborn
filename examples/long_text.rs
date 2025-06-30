@@ -13,7 +13,7 @@ async fn main() -> anyhow::Result<()> {
 
     let bundle_id = get_test_bundle_id();
 
-    let manager = NotifyManager::try_new(bundle_id, Some("usernotify".to_string()))?;
+    let manager = NotifyManager::try_new(&bundle_id, Some("usernotify"))?;
 
     // Register notification handler
     manager.register(

@@ -29,7 +29,7 @@ async fn main() -> anyhow::Result<()> {
 
     let bundle_id = get_test_bundle_id();
 
-    let manager = NotifyManager::try_new(bundle_id, None)?;
+    let manager = NotifyManager::try_new(&bundle_id, None)?;
     let categories = create_test_categories();
 
     // Register categories first

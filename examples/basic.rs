@@ -5,10 +5,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
 
     // Create notification manager
-    let manager = NotifyManager::try_new(
-        "com.example.user-notify-reborn".to_string(),
-        Some("usernotify".to_string()),
-    )?;
+    let manager = NotifyManager::try_new("com.example.user-notify-reborn", Some("usernotify"))?;
 
     // Register notification handler
     manager.register(

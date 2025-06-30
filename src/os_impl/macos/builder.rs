@@ -1,6 +1,6 @@
 use std::{collections::HashMap, ops::Deref};
 
-use super::{NotifyHandleMacOS, NotifyManagerMacOS};
+use super::{NotifyHandle, NotifyManager};
 use objc2::{rc::Retained, runtime::AnyObject};
 use objc2_foundation::{NSDictionary, NSString};
 use objc2_user_notifications::{
@@ -12,22 +12,22 @@ use crate::{Error, NotifyBuilder};
 
 pub(super) fn build_and_send(
     builder: NotifyBuilder,
-    manager: &NotifyManagerMacOS,
+    manager: &NotifyManager,
     tx: tokio::sync::oneshot::Sender<Result<(), Error>>,
-) -> Result<NotifyHandleMacOS, Error> {
+) -> Result<NotifyHandle, Error> {
     let (request, id, user_info) = build(builder, manager)?;
     manager.add_notification(&request, move |result| {
         if let Err(err) = tx.send(result) {
             log::error!("add_notification tx.send error {err:?}");
         }
     });
-    Ok(NotifyHandleMacOS::new(id, user_info))
+    Ok(NotifyHandle::new(id, user_info))
 }
 
 #[allow(clippy::type_complexity)]
 fn build(
     builder: NotifyBuilder,
-    manager: &NotifyManagerMacOS,
+    manager: &NotifyManager,
 ) -> Result<
     (
         Retained<UNNotificationRequest>,

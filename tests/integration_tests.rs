@@ -19,16 +19,14 @@ fn test_notification_from_non_main_thread() {
 
         let test_result = rt.block_on(async {
             // create notification manager
-            let manager = match NotifyManager::try_new(
-                "com.example.user-notify-test".to_string(),
-                Some("test-notify".to_string()),
-            ) {
-                Ok(m) => m,
-                Err(e) => {
-                    eprintln!("Failed to create notification manager: {e}");
-                    return false;
-                }
-            };
+            let manager =
+                match NotifyManager::try_new("com.example.user-notify-test", Some("test-notify")) {
+                    Ok(m) => m,
+                    Err(e) => {
+                        eprintln!("Failed to create notification manager: {e}");
+                        return false;
+                    }
+                };
 
             // register notification handler
             let notification_received = Arc::new(Mutex::new(false));
@@ -130,8 +128,8 @@ fn test_multiple_threads_concurrent_notifications() {
 
             let result = rt.block_on(async {
                 let manager = match NotifyManager::try_new(
-                    format!("com.example.thread-test-{i}"),
-                    Some(format!("thread-test-{i}")),
+                    &format!("com.example.thread-test-{i}"),
+                    Some(&format!("thread-test-{i}")),
                 ) {
                     Ok(m) => m,
                     Err(e) => {
@@ -207,11 +205,8 @@ async fn test_async_spawn_notification() {
     let _ = env_logger::try_init();
 
     // test sending notifications in tokio::spawn
-    let manager = NotifyManager::try_new(
-        "com.example.async-spawn-test".to_string(),
-        Some("async-spawn-test".to_string()),
-    )
-    .expect("Failed to create notification manager");
+    let manager = NotifyManager::try_new("com.example.async-spawn-test", Some("async-spawn-test"))
+        .expect("Failed to create notification manager");
 
     // register handler
     manager
