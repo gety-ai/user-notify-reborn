@@ -125,7 +125,7 @@ where
     async fn send(&self, builder: NotifyBuilder) -> Result<Self::NotifyHandle, Error>;
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct NotifyResponse {
     /// ID of the notification that was assigned by the system
     pub notification_id: String,
@@ -135,7 +135,7 @@ pub struct NotifyResponse {
     pub user_metadata: HashMap<String, String>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum NotifyResponseAction {
     /// When user clicks on the notification
     Default,
@@ -145,7 +145,7 @@ pub enum NotifyResponseAction {
     Other(String),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct NotifyCategory {
     /// ID of the category by which it is referenced on notifications
     pub identifier: String,
@@ -153,7 +153,7 @@ pub struct NotifyCategory {
     pub actions: Vec<NotifyCategoryAction>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum NotifyCategoryAction {
     Action {
         identifier: String,
