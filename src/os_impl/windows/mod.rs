@@ -312,21 +312,30 @@ impl NotifyManager {
         user_info: HashMap<String, String>,
     ) -> TypedEventHandler<ToastNotification, IInspectable> {
         let handler_callback = self.handler_callback.clone();
+        let notification_protocol = self.notification_protocol.clone();
         TypedEventHandler::new(move |_, insp| {
             let action = Self::get_activated_action(&insp);
             if let Some(handler) = handler_callback.get() {
-                handler(crate::NotifyResponse {
-                    notification_id: notification_id.clone(),
-                    action: action
-                        .and_then(|action| {
-                            builder::decode_deeplink(&action)
+                let response_action = action
+                    .map(|action_str| {
+                        // If we have a notification protocol, decode as deeplink
+                        if notification_protocol.is_some() {
+                            builder::decode_deeplink(&action_str)
                                 .map(|response| response.action)
                                 .inspect_err(|err| {
-                                    log::error!("failed to extract action from {action}: {err}")
+                                    log::error!("failed to extract action from {action_str}: {err}")
                                 })
-                                .ok()
-                        })
-                        .unwrap_or(NotifyResponseAction::Default),
+                                .unwrap_or_else(|_| NotifyResponseAction::Other(action_str))
+                        } else {
+                            // Without notification protocol, treat as plain identifier
+                            NotifyResponseAction::Other(action_str)
+                        }
+                    })
+                    .unwrap_or(NotifyResponseAction::Default);
+
+                handler(crate::NotifyResponse {
+                    notification_id: notification_id.clone(),
+                    action: response_action,
                     user_input: None,
                     user_metadata: user_info.clone(),
                 })
