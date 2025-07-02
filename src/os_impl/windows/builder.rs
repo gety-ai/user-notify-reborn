@@ -59,17 +59,19 @@ pub fn build_toast_xml(
 
     // Generate actions XML based on category
     let actions_xml = if let Some(category_id) = &builder.category_id {
-        generate_actions_xml_fn(category_id)?
+        log::debug!("Building toast XML with category_id: {}", category_id);
+        let xml = generate_actions_xml_fn(category_id)?;
+        log::debug!("Generated actions XML from function: {}", xml);
+        xml
     } else {
+        log::debug!("No category_id provided, no actions will be generated");
         String::new()
     };
 
     // TODO: support custom sound
     // - [Toast audio options](https://docs.microsoft.com/en-us/windows/apps/design/shell/tiles-and-notifications/custom-audio-on-toasts)
-    let toast_xml = XmlDocument::new()?;
-    toast_xml
-        .LoadXml(&HSTRING::from(format!(
-            r#"<toast duration="short" {launch_options}>
+    let toast_xml_string = format!(
+        r#"<toast duration="short" {launch_options}>
             <visual>
                 <binding template="ToastGeneric">
                     {title_content}
@@ -80,7 +82,13 @@ pub fn build_toast_xml(
             <audio src="ms-winsoundevent:Notification.SMS" />
             {actions_xml}
         </toast>"#
-        )))
+    );
+    
+    log::debug!("Final toast XML: {}", toast_xml_string);
+    
+    let toast_xml = XmlDocument::new()?;
+    toast_xml
+        .LoadXml(&HSTRING::from(toast_xml_string))
         .map_err(|e| Error::Other(e.to_string()))?;
 
     Ok(toast_xml)

@@ -241,8 +241,14 @@ impl NotifyManager {
     fn generate_actions_xml(&self, category_id: &str) -> Result<String, Error> {
         let categories = self.categories.read().map_err(|_| Error::SettingHandler)?;
 
+        log::debug!("Generating actions XML for category: {}", category_id);
+        log::debug!("Available categories: {:?}", categories.keys().collect::<Vec<_>>());
+
         if let Some(category) = categories.get(category_id) {
+            log::debug!("Found category: {:?}", category);
+            
             if category.actions.is_empty() {
+                log::debug!("Category has no actions, returning empty XML");
                 return Ok(String::new());
             }
 
@@ -251,23 +257,30 @@ impl NotifyManager {
             for action in &category.actions {
                 let action_xml = match action {
                     crate::NotifyCategoryAction::Action { identifier, title } => {
-                        Self::generate_action_xml(identifier, title)
+                        let xml = Self::generate_action_xml(identifier, title);
+                        log::debug!("Generated action XML: {}", xml);
+                        xml
                     }
                     crate::NotifyCategoryAction::TextInputAction {
                         identifier,
                         title: _,
                         input_button_title,
                         input_placeholder,
-                    } => Self::generate_text_input_action_xml(
-                        identifier,
-                        input_button_title,
-                        input_placeholder,
-                    ),
+                    } => {
+                        let xml = Self::generate_text_input_action_xml(
+                            identifier,
+                            input_button_title,
+                            input_placeholder,
+                        );
+                        log::debug!("Generated text input action XML: {}", xml);
+                        xml
+                    }
                 };
                 actions_xml.push_str(&action_xml);
             }
 
             actions_xml.push_str("</actions>");
+            log::debug!("Final actions XML: {}", actions_xml);
             Ok(actions_xml)
         } else {
             log::warn!("Category '{category_id}' not found in registered categories");

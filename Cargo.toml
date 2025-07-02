@@ -57,6 +57,7 @@ send_wrapper = "0.6"
 [dev-dependencies]
 env_logger = "0.11.8"
 tokio-test = "0.4.4"
+anyhow = "1"
 
 [[example]]
 name = "basic"
@@ -73,3 +74,11 @@ path = "examples/permission_request.rs"
 [[example]]
 name = "non_main_thread"
 path = "examples/non_main_thread.rs"
+
+[[example]]
+name = "action"
+path = "examples/action.rs"
+
+[[example]]
+name = "windows_com_test"
+path = "examples/windows_com_test.rs"
