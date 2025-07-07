@@ -91,7 +91,10 @@ async fn test_tauri_style_single_thread() -> Result<(), Box<dyn std::error::Erro
 
     let result = Arc::new(Mutex::new(false));
     let result_clone = Arc::clone(&result);
-    let manager_clone = Arc::new(manager);
+
+    // Use a channel to communicate between threads instead of sharing the manager
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    let manager_clone = manager.clone();
 
     let handle = thread::spawn(move || {
         let rt = tokio::runtime::Runtime::new()
@@ -136,9 +139,12 @@ async fn test_tauri_style_single_thread() -> Result<(), Box<dyn std::error::Erro
         });
 
         *result_clone.lock().unwrap() = success;
+        // Send completion signal
+        let _ = tx.send(());
     });
 
     // Wait for worker thread to complete
+    let _ = rx.await;
     handle.join().expect("Worker thread panicked");
 
     // Check results
@@ -151,6 +157,9 @@ async fn test_tauri_style_single_thread() -> Result<(), Box<dyn std::error::Erro
 
     // Keep main thread alive briefly to see notifications
     tokio::time::sleep(Duration::from_secs(3)).await;
+
+    // Keep manager alive until the end of the function
+    drop(manager);
 
     Ok(())
 }
@@ -183,12 +192,14 @@ async fn test_tauri_style_multiple_threads() -> Result<(), Box<dyn std::error::E
     // Spawn multiple worker threads
     let mut handles = vec![];
     let results = Arc::new(Mutex::new(Vec::new()));
+    let mut completion_receivers = vec![];
 
     println!("🧵 Spawning 3 worker threads...");
-    let manager = Arc::new(manager);
     for worker_id in 0..3 {
         let results_clone = Arc::clone(&results);
-        let manager_clone = Arc::clone(&manager);
+        let manager_clone = manager.clone();
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        completion_receivers.push(rx);
 
         let handle = thread::spawn(move || {
             let rt = tokio::runtime::Runtime::new()
@@ -228,12 +239,18 @@ async fn test_tauri_style_multiple_threads() -> Result<(), Box<dyn std::error::E
             });
 
             results_clone.lock().unwrap().push((worker_id, result));
+            // Send completion signal
+            let _ = tx.send(());
         });
 
         handles.push(handle);
     }
 
     // Wait for all worker threads to complete
+    for rx in completion_receivers {
+        let _ = rx.await;
+    }
+
     for handle in handles {
         handle.join().expect("Worker thread panicked");
     }
@@ -258,6 +275,9 @@ async fn test_tauri_style_multiple_threads() -> Result<(), Box<dyn std::error::E
 
     // Keep main thread alive briefly to see notifications
     tokio::time::sleep(Duration::from_secs(5)).await;
+
+    // Keep manager alive until the end of the function
+    drop(manager);
 
     Ok(())
 }
@@ -289,7 +309,8 @@ async fn test_tauri_style_async_threads() -> Result<(), Box<dyn std::error::Erro
     // Worker thread with nested async operations
     let result = Arc::new(Mutex::new(false));
     let result_clone = Arc::clone(&result);
-    let manager_clone = Arc::new(manager);
+    let manager_clone = manager.clone();
+    let (tx, rx) = tokio::sync::oneshot::channel();
 
     println!("🧵 Spawning worker thread with nested async operations...");
 
@@ -357,9 +378,12 @@ async fn test_tauri_style_async_threads() -> Result<(), Box<dyn std::error::Erro
         });
 
         *result_clone.lock().unwrap() = success;
+        // Send completion signal
+        let _ = tx.send(());
     });
 
     // Wait for worker thread to complete
+    let _ = rx.await;
     handle.join().expect("Worker thread panicked");
 
     // Check results
@@ -372,6 +396,9 @@ async fn test_tauri_style_async_threads() -> Result<(), Box<dyn std::error::Erro
 
     // Keep main thread alive briefly to see notifications
     tokio::time::sleep(Duration::from_secs(3)).await;
+
+    // Keep manager alive until the end of the function
+    drop(manager);
 
     Ok(())
 }
