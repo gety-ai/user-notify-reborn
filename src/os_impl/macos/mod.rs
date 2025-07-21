@@ -281,11 +281,8 @@ impl NotifyManager {
             if let Some(cb) = cb.take() {
                 let result = if error.is_null() {
                     Ok(())
-                } else if let Some(err_ref) = unsafe { error.as_ref() } {
-                    let description = err_ref.localizedDescription();
-                    Err(Error::NSError(description.to_string()))
                 } else {
-                    Err(Error::NSError("Failed to read error".to_string()))
+                    unsafe { Err((&*error).into()) }
                 };
                 cb(result);
             }
@@ -328,16 +325,8 @@ impl NotifyManager {
             if let Some(cb) = cb.take() {
                 let result = if error.is_null() {
                     Ok(authorized.as_bool())
-                } else if let Some(err_ref) = unsafe { error.as_ref() } {
-                    let code = err_ref.code();
-                    let domain = err_ref.domain();
-                    let user_info = err_ref.userInfo();
-                    let description = err_ref.localizedDescription();
-                    Err(Error::NSError(format!(
-                        "Authorization error: code: {code}, domain: {domain}, user_info: {user_info:?}, description: {description}"
-                    )))
                 } else {
-                    Err(Error::NSError("Failed to read error".to_string()))
+                    unsafe { Err((&*error).into()) }
                 };
 
                 if cb.send(result).is_err() {

@@ -11,8 +11,13 @@ pub enum Error {
     #[error("macOS APIs need to be called from the main thread, but this is not the main thread")]
     NotMainThread,
     #[cfg(target_os = "macos")]
-    #[error("NSError: {0}")]
-    NSError(String),
+    #[error("NSError: code: {code}, domain: {domain}, user_info: {user_info:?}, description: {description}")]
+    NSError {
+        code: isize,
+        domain: String,
+        user_info: String,
+        description: String,
+    },
     #[cfg(target_os = "macos")]
     #[error("Failed to set delegate_reference, did you call register multiple times?")]
     MultipleRegisterCalls,
@@ -51,4 +56,17 @@ pub enum Error {
     ParseUrlFromPath(PathBuf),
     #[error("Other error: {0}")]
     Other(String),
+}
+
+
+#[cfg(target_os = "macos")]
+impl From<&objc2_foundation::NSError> for Error {
+    fn from(error: &objc2_foundation::NSError) -> Self {
+        Error::NSError {
+            code: error.code(),
+            domain: error.domain().to_string(),
+            user_info: format!("{:?}", error.userInfo()),
+            description: error.localizedDescription().to_string(),
+        }
+    }
 }
