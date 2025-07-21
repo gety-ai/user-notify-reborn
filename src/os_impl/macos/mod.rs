@@ -326,7 +326,14 @@ impl NotifyManager {
                 let result = if error.is_null() {
                     Ok(authorized.as_bool())
                 } else {
-                    unsafe { Err((&*error).into()) }
+                    let err = Error::from(unsafe { &*error });
+
+                    match err {
+                        Error::NSError {
+                            code, description, ..
+                        } if code == 1 && description.contains("allowed") => Ok(false),
+                        _ => Err(err),
+                    }
                 };
 
                 if cb.send(result).is_err() {
