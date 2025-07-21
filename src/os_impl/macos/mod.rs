@@ -115,10 +115,7 @@ impl NotifyHandle {
     ///
     /// # References
     /// - [removeDeliveredNotificationsWithIdentifiers](https://developer.apple.com/documentation/usernotifications/unusernotificationcenter/1649500-removedeliverednotificationswith)
-    fn remove_notification_by_id(notification_id: &str) -> Result<(), Error> {
-        Self::ensure_main_thread()?;
-        Self::ensure_bundle_id()?;
-
+    fn remove_notification_by_id(notification_id: &str, _mtm: MainThreadMarker) -> Result<(), Error> {
         let id = NSString::from_str(notification_id);
         let array: Retained<NSArray<NSString>> = NSArray::from_retained_slice(&[id]);
 
@@ -141,7 +138,7 @@ impl NotifyHandleExt for NotifyHandle {
     /// # References
     /// - [UNUserNotificationCenter.removeDeliveredNotificationsWithIdentifiers](https://developer.apple.com/documentation/usernotifications/unusernotificationcenter/1649500-removedeliverednotificationswith)
     fn close(&self) -> Result<(), Error> {
-        Self::remove_notification_by_id(&self.id)
+        Self::remove_notification_by_id(&self.id, self.mtm)
     }
 
     /// Returns the unique identifier of this notification
@@ -163,6 +160,8 @@ impl NotifyHandleExt for NotifyHandle {
 /// including delegate references and thread handles.
 #[derive(Debug)]
 pub struct NotifyManagerInner {
+    _mtm: MainThreadMarker,
+
     /// Reference to the notification delegate to prevent it from being dropped
     ///
     /// The delegate handles notification responses and must remain alive
@@ -179,7 +178,7 @@ pub struct NotifyManagerInner {
     ///
     /// Required for all notification operations on macOS.
     /// Derived from `NSBundle.mainBundle.bundleIdentifier`.
-    pub(crate) bundle_id: Option<String>,
+    pub(crate) bundle_id: String,
 }
 
 /// macOS implementation of the notification manager
@@ -217,23 +216,22 @@ impl NotifyManager {
     /// The bundle identifier is retrieved during construction and cached.
     /// If no bundle identifier is available, notification operations will fail.
     #[allow(clippy::new_without_default)]
-    pub fn new_() -> Self {
+    pub fn new_(bundle_id: String, mtm: MainThreadMarker) -> Self {
         Self {
             inner: Arc::new(NotifyManagerInner {
+                _mtm: mtm,
                 delegate_reference: SendWrapper::new(OnceCell::new()),
                 listener_loop: SendWrapper::new(OnceCell::new()),
-                bundle_id: Self::get_bundle_identifier(),
+                bundle_id,
             }),
         }
     }
 
     pub fn try_new(_bundle_id: &str, _category_identifier: Option<&str>) -> Result<Self, Error> {
-        use objc2_foundation::NSBundle;
-        if unsafe { NSBundle::mainBundle().bundleIdentifier().is_none() } {
-            return Err(Error::NoBundleId);
-        }
+        let bundle_id = Self::get_bundle_identifier().ok_or(Error::NoBundleId)?;
+        let mtm = MainThreadMarker::new().ok_or(Error::NotMainThread)?;
 
-        Ok(Self::new_())
+        Ok(Self::new_(bundle_id.to_string(), mtm))
     }
 
     /// Retrieves the application's bundle identifier
@@ -251,13 +249,6 @@ impl NotifyManager {
         }
     }
 
-    /// Validates that the manager has a valid bundle identifier
-    ///
-    /// # Returns
-    /// Reference to bundle ID if valid, `Error::NoBundleId` otherwise
-    fn ensure_valid_bundle_id(&self) -> Result<&str, Error> {
-        self.inner.bundle_id.as_deref().ok_or(Error::NoBundleId)
-    }
 
     /// Creates a completion handler for notification requests
     ///
@@ -470,8 +461,6 @@ impl NotifyManager {
     /// # References
     /// - [removeDeliveredNotificationsWithIdentifiers](https://developer.apple.com/documentation/usernotifications/unusernotificationcenter/1649500-removedeliverednotificationswith)
     fn remove_notifications_by_ids(&self, ids: Vec<&str>) -> Result<(), Error> {
-        self.ensure_valid_bundle_id()?;
-
         let ns_ids: Vec<_> = ids.iter().map(|s| NSString::from_str(s)).collect();
         let array: Retained<NSArray<NSString>> = NSArray::from_retained_slice(ns_ids.as_slice());
 
@@ -500,8 +489,6 @@ impl NotifyManagerExt for NotifyManager {
     /// # References
     /// - [UNUserNotificationCenter.getNotificationSettings](https://developer.apple.com/documentation/usernotifications/unusernotificationcenter/1649524-getnotificationsettings)
     async fn get_notification_permission_state(&self) -> Result<bool, Error> {
-        self.ensure_valid_bundle_id()?;
-
         let (tx, rx) = tokio::sync::oneshot::channel::<bool>();
 
         {
@@ -531,8 +518,6 @@ impl NotifyManagerExt for NotifyManager {
     /// # References
     /// - [Asking Permission to Use Notifications](https://developer.apple.com/documentation/usernotifications/asking_permission_to_use_notifications)
     async fn first_time_ask_for_notification_permission(&self) -> Result<bool, Error> {
-        self.ensure_valid_bundle_id()?;
-
         let (tx, rx) = tokio::sync::oneshot::channel::<Result<bool, Error>>();
         Self::request_notification_authorization(tx);
 
@@ -611,8 +596,6 @@ impl NotifyManagerExt for NotifyManager {
     /// # References
     /// - [removeAllDeliveredNotifications](https://developer.apple.com/documentation/usernotifications/unusernotificationcenter/1649501-removealldeliverednotifications)
     fn remove_all_delivered_notifications(&self) -> Result<(), Error> {
-        self.ensure_valid_bundle_id()?;
-
         unsafe {
             UNUserNotificationCenter::currentNotificationCenter().removeAllDeliveredNotifications();
         }
@@ -646,8 +629,6 @@ impl NotifyManagerExt for NotifyManager {
     /// # References
     /// - [getDeliveredNotifications](https://developer.apple.com/documentation/usernotifications/unusernotificationcenter/1649520-getdeliverednotifications)
     async fn get_active_notifications(&self) -> Result<Vec<Self::NotifyHandle>, Error> {
-        self.ensure_valid_bundle_id()?;
-
         let (tx, rx) = tokio::sync::oneshot::channel::<Vec<NotifyHandle>>();
 
         {

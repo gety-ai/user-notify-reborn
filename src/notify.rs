@@ -94,8 +94,6 @@ where
 
 #[async_trait]
 pub trait NotifyManagerExt
-where
-    Self: Send + Sync + Debug,
 {
     type NotifyHandle: NotifyHandleExt;
 
