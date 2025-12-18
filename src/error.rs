@@ -45,6 +45,11 @@ pub enum Error {
     #[error(transparent)]
     Base64Decode(#[from] base64::DecodeError),
 
+    // Linux errors
+    #[cfg(target_os = "linux")]
+    #[error("Notifications are not supported on this platform")]
+    NotSupported,
+
     // Common errors
     #[error("Infallible error, something went really wrong: {0}")]
     Infallible(#[from] std::convert::Infallible),
